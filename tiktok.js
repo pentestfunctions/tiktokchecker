@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         TikTok Video Info Extractor
 // @namespace    http://tampermonkey.net/
-// @version      0.9
-// @description  Extract video titles and views from TikTok user profiles and display in a sortable table
+// @version      1.2
+// @description  Extract video titles and views from TikTok user profiles and display in a sortable table and hashtag analytics.
 // @author       You
 // @match        https://www.tiktok.com/@*
 // @grant        none
@@ -13,6 +13,7 @@
 
     function extractVideoInfo() {
         let containerDivs = document.querySelectorAll('div.tiktok-x6y88p-DivItemContainerV2');
+
         let infoDiv = document.createElement('div');
         infoDiv.style.position = 'fixed';
         infoDiv.style.top = '10px';
@@ -21,7 +22,7 @@
         infoDiv.style.maxHeight = '400px';
         infoDiv.style.overflowY = 'scroll';
         infoDiv.style.padding = '10px';
-        infoDiv.style.background = 'white';
+        infoDiv.style.background = '#F0F0F0'; // Light gray background
         infoDiv.style.border = '1px solid black';
         infoDiv.style.boxShadow = '0px 0px 10px 0px rgba(0,0,0,0.75)';
 
@@ -36,10 +37,10 @@
         th1.textContent = 'Views';
         th1.style.border = '1px solid black';
         th1.style.cursor = 'pointer';
-        th1.dataset.order = 'desc'; // Initially set to descending order
+        th1.dataset.order = 'desc';
         th1.onclick = function() {
             sortTable(table, th1.dataset.order);
-            th1.dataset.order = th1.dataset.order === 'asc' ? 'desc' : 'asc'; // Toggle order for next click
+            th1.dataset.order = th1.dataset.order === 'asc' ? 'desc' : 'asc';
         };
 
         let th2 = document.createElement('th');
@@ -75,25 +76,25 @@
             let parsedViews = parseViews(originalViews);
 
             let hashtags = title.match(/#\w+/g) || [];
-            let hashtagStr = hashtags.join(' ');
-            let titleWithoutHashtags = title.replace(/#\w+/g, '').trim();
 
             hashtags.forEach(hashtag => {
-                hashtagCounts[hashtag] = (hashtagCounts[hashtag] || 0) + 1;
+                hashtagCounts[hashtag] = (hashtagCounts[hashtag] || {count: 0, views: 0});
+                hashtagCounts[hashtag].count += 1;
+                hashtagCounts[hashtag].views += parsedViews;
             });
 
             let tr = document.createElement('tr');
             let td1 = document.createElement('td');
-            td1.textContent = originalViews; // Display original views
+            td1.textContent = originalViews;
             td1.style.border = '1px solid black';
-            td1.dataset.parsedViews = parsedViews; // Store parsed views as a number in dataset
+            td1.dataset.parsedViews = parsedViews;
 
             let td2 = document.createElement('td');
-            td2.textContent = titleWithoutHashtags;
+            td2.textContent = title;
             td2.style.border = '1px solid black';
 
             let td3 = document.createElement('td');
-            td3.textContent = hashtagStr;
+            td3.textContent = hashtags.join(' ');
             td3.style.border = '1px solid black';
 
             tr.appendChild(td1);
@@ -103,14 +104,41 @@
         });
 
         Object.entries(hashtagCounts)
-            .filter(([_, count]) => count > 1)
-            .sort((a, b) => b[1] - a[1])
-            .forEach(([hashtag, count]) => {
+            .filter(([_, data]) => data.count > 1)
+            .sort((a, b) => b[1].views - a[1].views)
+            .forEach(([hashtag, data]) => {
                 let p = document.createElement('p');
-                p.textContent = `${hashtag}: ${count}`;
+                let avgViews = (data.views / data.count).toFixed(2);
+                p.textContent = `${hashtag}: ${data.count} times, ${data.views} views, Avg: ${avgViews} views/hashtag`;
                 hashtagDiv.appendChild(p);
             });
 
+        let dropdown = document.createElement('select');
+        dropdown.style.marginBottom = '10px';
+        dropdown.onchange = function() {
+            table.style.display = this.value === 'table' ? 'block' : 'none';
+            hashtagDiv.style.display = this.value === 'hashtags' ? 'block' : 'none';
+        };
+
+        let option1 = document.createElement('option');
+        option1.textContent = 'Select Section';
+        option1.value = 'select';
+        dropdown.appendChild(option1);
+
+        let option2 = document.createElement('option');
+        option2.textContent = 'Video Table';
+        option2.value = 'table';
+        dropdown.appendChild(option2);
+
+        let option3 = document.createElement('option');
+        option3.textContent = 'Hashtags';
+        option3.value = 'hashtags';
+        dropdown.appendChild(option3);
+
+        table.style.display = 'none';
+        hashtagDiv.style.display = 'none';
+
+        infoDiv.appendChild(dropdown);
         infoDiv.appendChild(hashtagDiv);
         infoDiv.appendChild(table);
 
